@@ -1,0 +1,152 @@
+name: Terraform Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# Fine-grained permissions:
+#   contents:read       — checkout
+#   id-token:write      — OIDC authentication with AWS
+#   pull-requests:write — post plan comments on PRs
+#   security-events:write — upload SARIF results (Checkov/tfsec)
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+  security-events: write
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  # ── 1. Format ────────────────────────────────────────────────────────────────
+  format:
+    name: Format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.8"
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+  # ── 2. Validate (+ optional plan) ────────────────────────────────────────────
+  validate:
+    name: Validate (${{ matrix.root }})
+    needs: format
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root:
+          - bootstrap/remote-state
+          - environments/log-archive
+          - environments/dev
+          - environments/security
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.8"
+
+      # Authenticate via OIDC only when the secret is configured.
+      # Omit AWS_ROLE_ARN in the repo to skip auth and skip the plan step.
+      - name: Configure AWS credentials
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: terraform-validate-ci
+
+      - name: Terraform init
+        working-directory: ${{ matrix.root }}
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: ${{ matrix.root }}
+        run: terraform validate
+
+      # Plan is gated on AWS credentials being available.
+      # Uses the example tfvars file when present so required variables are satisfied.
+      - name: Terraform plan
+        id: plan
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
+        working-directory: ${{ matrix.root }}
+        run: |
+          set +e
+          if [ -f terraform.tfvars.example ]; then
+            terraform plan -input=false -lock=false \
+              -var-file=terraform.tfvars.example \
+              -no-color 2>&1 | tee plan.txt
+          else
+            terraform plan -input=false -lock=false \
+              -no-color 2>&1 | tee plan.txt
+          fi
+          status=${PIPESTATUS[0]}
+          {
+            echo 'stdout<<EOF'
+            cat plan.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      # Post plan output as a sticky PR comment (one comment per matrix root, updated on re-run).
+      - name: Post plan to PR
+        if: ${{ github.event_name == 'pull_request' && secrets.AWS_ROLE_ARN != '' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: plan-${{ matrix.root }}
+          message: |
+            ### Terraform Plan: `${{ matrix.root }}`
+            <details><summary>Show Plan</summary>
+
+            ```
+            ${{ steps.plan.outputs.stdout }}
+            ```
+            </details>
+
+  # ── 3. Checkov static analysis ───────────────────────────────────────────────
+  checkov:
+    name: Checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          config_file: policies/checkov/checkov.yml
+
+  # ── 4. tfsec static analysis ─────────────────────────────────────────────────
+  tfsec:
+    name: tfsec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: .
+
+  # ── 5. OPA / conftest policy checks (non-blocking) ───────────────────────────
+  opa:
+    name: OPA policy checks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: princespaghetti/setup-conftest@v1
+
+      - name: Run conftest
+        run: conftest test . --policy policies/opa

@@ -1,0 +1,6 @@
+bucket         = "example-company-terraform-state"
+key            = "environments/log-archive/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "terraform-state-locks"
+encrypt        = true
+kms_key_id     = "arn:aws:kms:us-east-1:111122223333:key/example"

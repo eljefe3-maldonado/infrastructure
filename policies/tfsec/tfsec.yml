@@ -1,0 +1,12 @@
+# tfsec configuration for the aws-secure-baseline project
+# See: https://aquasecurity.github.io/tfsec/
+
+minimum_severity: MEDIUM
+
+exclude:
+  # Bootstrap bucket intentionally omits access logging (it IS the state backend)
+  - AVD-AWS-0089  # S3 bucket does not have logging enabled (bootstrap/remote-state)
+
+exclude_paths:
+  - .terraform
+  - "**/.terraform/**"

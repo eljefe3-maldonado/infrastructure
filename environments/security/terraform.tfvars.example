@@ -1,0 +1,19 @@
+aws_region              = "us-east-1"
+org_trail_name          = "org-trail"
+log_archive_bucket_name = "example-company-log-archive"
+log_archive_kms_key_arn = "arn:aws:kms:us-east-1:111122223333:key/example"
+
+enable_guardduty                     = true
+guardduty_delegated_admin_account_id = ""
+
+enable_security_hub                     = true
+security_hub_delegated_admin_account_id = ""
+
+access_analyzer_type = "ORGANIZATION"
+
+tags = {
+  Project     = "aws-secure-baseline"
+  Environment = "security"
+  ManagedBy   = "terraform"
+  CostCenter  = "cloud-security"
+}

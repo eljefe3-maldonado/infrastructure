@@ -1,0 +1,17 @@
+aws_region              = "us-east-1"
+log_archive_bucket_name = "example-company-log-archive"
+org_id                  = "o-exampleorgid"
+
+delivery_source_account_ids = [
+  "111122223333",
+]
+
+allow_cloudtrail_delivery    = false
+allow_vpc_flow_logs_delivery = false
+allow_config_delivery        = false
+
+tags = {
+  Project     = "aws-secure-baseline"
+  Environment = "log-archive"
+  ManagedBy   = "terraform"
+}

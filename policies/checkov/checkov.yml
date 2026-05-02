@@ -1,0 +1,6 @@
+compact: true
+download-external-modules: false
+framework:
+  - terraform
+skip-check:
+  - CKV_TF_1

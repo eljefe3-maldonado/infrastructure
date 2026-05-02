@@ -1,0 +1,10 @@
+aws_region        = "us-east-1"
+state_bucket_name = "example-company-terraform-state"
+lock_table_name   = "terraform-state-locks"
+kms_key_alias     = "terraform-remote-state"
+
+tags = {
+  Project     = "aws-secure-baseline"
+  Environment = "bootstrap"
+  ManagedBy   = "terraform"
+}
