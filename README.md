@@ -68,3 +68,4 @@ GitHub Actions runs format, init, validate, plan, Checkov, tfsec, and optional O
 - Environment folders contain examples and backend templates, not live account wiring.
 - Real AWS account IDs, IAM roles, backend bucket names, and regions must be supplied outside the repo.
 - SCPs should be tested in a sandbox OU before broad attachment.
+# infrastructure
